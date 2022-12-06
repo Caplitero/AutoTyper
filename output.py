@@ -27,18 +27,7 @@ from PySide6.QtGui import QFont
 import pyautogui
 import re
 
-class Worker(QRunnable):
-  def __init__(self , Data : str , Delay: int ):
-        super(Worker,self).__init__()
-        self.data = Data
-        self.delay = Delay
-        
-  @Slot()
-  def run(self):
-      print("Thread starting")
-      pyautogui.sleep(self.delay)
-      pyautogui.write(self.data ,0.025)
-      print("Thread done")
+
       
 
 class Ui_MainWindow(QMainWindow):
@@ -47,7 +36,6 @@ class Ui_MainWindow(QMainWindow):
         self.thread_manager = QThreadPool()
         self.setupUi()
         
-    
     def setupUi(self):
         self.setObjectName("MainWindow")
         self.resize(800, 600)
@@ -77,6 +65,7 @@ class Ui_MainWindow(QMainWindow):
         self.StartButt.setObjectName("StartButt")
         self.StopButt = QPushButton(self.centralwidget)
         self.StopButt.setGeometry(QRect(290, 380, 181, 101))
+        self.StopButt.setDisabled(True)
         font = QFont()
         font.setPointSize(20)
         self.StopButt.setFont(font)
@@ -92,6 +81,7 @@ class Ui_MainWindow(QMainWindow):
         
         self.retranslateUi(self)
         self.StartButt.clicked.connect(self.Start_Writing)
+        self.StopButt.clicked.connect(self.Stop_Writing)
         self.exit.clicked.connect(self.close) # type: ignore
         self.threadpool = QThreadPool()
         QMetaObject.connectSlotsByName(self)
@@ -106,8 +96,34 @@ class Ui_MainWindow(QMainWindow):
     def Start_Writing(self ):
         Text = MainWindow.textEdit.toPlainText()
         Text = re.sub(r"\t","",Text)
-        worker = Worker(Text,2)
+        worker = Worker(Text,2,self)
         self.threadpool.start(worker)
+    
+    def Stop_Writing(self):
+        print("Writing has been terminated")
+        self.threadpool.clear()
+        self.StartButt.setDisabled(False)
+        self.StopButt.setDisabled(True)
+
+
+class Worker(QRunnable):
+  def __init__(self , Data : str , Delay: int , Window : Ui_MainWindow ):
+        super(Worker,self).__init__()
+        self.data = Data
+        self.delay = Delay
+        self.MyWindow= Window     
+      
+  @Slot()
+  def run(self):
+      print("Thread starting")
+      self.MyWindow.StartButt.setDisabled(True)
+      self.MyWindow.StopButt.setDisabled(False)
+      print("Delay : ",self.delay,"s",sep = "")
+      pyautogui.sleep(self.delay)
+      pyautogui.write(self.data ,0.025)
+      print("Thread done")
+      self.MyWindow.StartButt.setDisabled(False)
+      self.MyWindow.StopButt.setDisabled(True)
 
 
 if __name__ == "__main__":
@@ -116,4 +132,5 @@ if __name__ == "__main__":
     MainWindow = Ui_MainWindow()
     MainWindow.show()
     sys.exit(app.exec())
+
 
