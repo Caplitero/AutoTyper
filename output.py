@@ -21,13 +21,13 @@
 #SOFTWARE.
 
 
-from PySide6.QtWidgets import QStatusBar, QMenuBar, QTextEdit, QScrollArea, QVBoxLayout, QLabel, QPushButton, QWidget, QMainWindow, QApplication
-from PySide6.QtCore import QMetaObject,QCoreApplication,  QRunnable, Slot, QThreadPool, QRect
+import threading
+from PySide6.QtWidgets import  QStatusBar, QMenuBar, QTextEdit, QScrollArea, QVBoxLayout, QLabel, QPushButton, QWidget, QMainWindow, QApplication
+from PySide6.QtCore import QObject, QMetaObject,QCoreApplication,  QRunnable, Slot, QThreadPool, QRect, QThread
 from PySide6.QtGui import QFont
 import pyautogui
 import re
-
-
+import ctypes
       
 
 class Ui_MainWindow(QMainWindow):
@@ -37,6 +37,7 @@ class Ui_MainWindow(QMainWindow):
         self.setupUi()
         
     def setupUi(self):
+        
         self.setObjectName("MainWindow")
         self.resize(800, 600)
         self.centralwidget  = QWidget(self)
@@ -78,14 +79,15 @@ class Ui_MainWindow(QMainWindow):
         self.statusbar = QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
-        
+       
         self.retranslateUi(self)
         self.StartButt.clicked.connect(self.Start_Writing)
         self.StopButt.clicked.connect(self.Stop_Writing)
         self.exit.clicked.connect(self.close) # type: ignore
         self.threadpool = QThreadPool()
         QMetaObject.connectSlotsByName(self)
-
+     
+    
     def retranslateUi(self,MainWindow):
         _translate = QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
@@ -96,34 +98,52 @@ class Ui_MainWindow(QMainWindow):
     def Start_Writing(self ):
         Text = MainWindow.textEdit.toPlainText()
         Text = re.sub(r"\t","",Text)
-        worker = Worker(Text,2,self)
-        self.threadpool.start(worker)
+        
+        self.StartButt.setDisabled(True)
+        self.StopButt.setDisabled(False)
+        self.newthread = CAP_Thread(Text, 2, self)
+        self.newthread.start()
+        
+        
     
     def Stop_Writing(self):
-        print("Writing has been terminated")
-        self.threadpool.clear()
         self.StartButt.setDisabled(False)
         self.StopButt.setDisabled(True)
-
-
-class Worker(QRunnable):
-  def __init__(self , Data : str , Delay: int , Window : Ui_MainWindow ):
-        super(Worker,self).__init__()
+        self.newthread.raise_exception()
+        print("Stopped")
+        
+class CAP_Thread(threading.Thread):
+    def __init__(self, Data : str , Delay: int , Window : Ui_MainWindow ):
+        threading.Thread.__init__(self)
         self.data = Data
         self.delay = Delay
-        self.MyWindow= Window     
-      
-  @Slot()
-  def run(self):
+        self.MyWindow= Window   
+             
+    def run(self):
       print("Thread starting")
-      self.MyWindow.StartButt.setDisabled(True)
-      self.MyWindow.StopButt.setDisabled(False)
-      print("Delay : ",self.delay,"s",sep = "")
+      print("Delay : ",self.delay,"s",sep = "")    
       pyautogui.sleep(self.delay)
       pyautogui.write(self.data ,0.025)
       print("Thread done")
       self.MyWindow.StartButt.setDisabled(False)
       self.MyWindow.StopButt.setDisabled(True)
+          
+    def get_id(self):
+        if hasattr(self, '_thread_id'):
+            return self._thread_id
+        for id, thread in threading._active.items():
+            if thread is self:
+                return id
+  
+    def raise_exception(self):
+        thread_id = self.get_id()
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
+              ctypes.py_object(SystemExit))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+            print('Exception raise failure')
+  
+          
 
 
 if __name__ == "__main__":
